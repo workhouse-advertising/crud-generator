@@ -16,6 +16,7 @@ class CrudControllerCommand extends GeneratorCommand
                             {--crud-name= : The name of the Crud.}
                             {--model-name= : The name of the Model.}
                             {--model-namespace= : The namespace of the Model.}
+                            {--relationships= : The relationships for the model}
                             {--controller-namespace= : Namespace of the controller.}
                             {--view-path= : The name of the view path.}
                             {--fields= : Fields name for the form & migration.}
@@ -85,7 +86,7 @@ class CrudControllerCommand extends GeneratorCommand
      */
     protected function buildClass($name)
     {
-        $stub = $this->files->get($this->getStub());
+        // $stub = $this->files->get($this->getStub());
 
         $viewPath = $this->option('view-path') ? $this->option('view-path') . '.' : '';
         $crudName = strtolower($this->option('crud-name'));
@@ -99,6 +100,7 @@ class CrudControllerCommand extends GeneratorCommand
         $viewName = snake_case($this->option('crud-name'), '-');
         $fields = $this->option('fields');
         $validations = rtrim($this->option('validations'), ';');
+        $relationships = $this->option('relationships') ? $this->option('relationships') : [];
 
         $validationRules = '';
         if (trim($validations) != '') {
@@ -156,21 +158,25 @@ EOD;
             $whereSnippet .= "->";
         }
 
+        $variables = compact([
+            'crudName',
+            'crudNameSingular',
+            'modelName',
+            'modelNamespace',
+            'routeGroup',
+            'routePrefix',
+            'routePrefixCap',
+            'perPage',
+            'viewName',
+            'viewPath',
+            'fields',
+            'validations',
+            'validationRules',
+            'fileSnippet',
+            'relationships',
+        ]);
+        $stub = (string)view('crud-generator.controller', $variables);
         return $this->replaceNamespace($stub, $name)
-            ->replaceViewPath($stub, $viewPath)
-            ->replaceViewName($stub, $viewName)
-            ->replaceCrudName($stub, $crudName)
-            ->replaceCrudNameSingular($stub, $crudNameSingular)
-            ->replaceModelName($stub, $modelName)
-            ->replaceModelNamespace($stub, $modelNamespace)
-            ->replaceModelNamespaceSegments($stub, $modelNamespace)
-            ->replaceRouteGroup($stub, $routeGroup)
-            ->replaceRoutePrefix($stub, $routePrefix)
-            ->replaceRoutePrefixCap($stub, $routePrefixCap)
-            ->replaceValidationRules($stub, $validationRules)
-            ->replacePaginationNumber($stub, $perPage)
-            ->replaceFileSnippet($stub, $fileSnippet)
-            ->replaceWhereSnippet($stub, $whereSnippet)
             ->replaceClass($stub, $name);
     }
 

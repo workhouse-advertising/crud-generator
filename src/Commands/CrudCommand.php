@@ -28,7 +28,8 @@ class CrudCommand extends Command
                             {--route-group= : Prefix of the route group.}
                             {--view-path= : The name of the view path.}
                             {--localize=no : Allow to localize? yes|no.}
-                            {--locales=en : Locales language type.}';
+                            {--locales=en : Locales language type.}
+                            {--force : Overwrite already existing controllers/models.}';
 
     /**
      * The console command description.
@@ -88,15 +89,15 @@ class CrudCommand extends Command
         }
 
         $fieldsArray = explode(';', $fields);
-        $fillableArray = [];
+        $fillable = [];
 
         foreach ($fieldsArray as $item) {
             $spareParts = explode('#', trim($item));
-            $fillableArray[] = $spareParts[0];
+            $fillable[] = $spareParts[0];
         }
 
-        $commaSeparetedString = implode("', '", $fillableArray);
-        $fillable = "['" . $commaSeparetedString . "']";
+        // $commaSeparetedString = implode("', '", $fillableArray);
+        // $fillable = "['" . $commaSeparetedString . "']";
 
         $localize = $this->option('localize');
         $locales = $this->option('locales');
@@ -107,13 +108,44 @@ class CrudCommand extends Command
             $relationships = $this->processJSONRelationships($this->option('fields_from_file'));
         }
 
+        if ($relationships) {
+            $relationshipData = trim($relationships) != '' ? explode(';', trim($relationships)) : [];
+            $relationships = [];
+            foreach ($relationshipData as $rel) {
+                // relationshipname#relationshiptype#args_separated_by_pipes
+                // e.g. employees#hasMany#App\Employee|id|dept_id
+                // user is responsible for ensuring these relationships are valid
+                $parts = explode('#', $rel);
+                if (count($parts) != 3) {
+                    continue;
+                }
+                // blindly wrap each arg in single quotes
+                $args = explode('|', trim($parts[2]));
+                $argsString = '';
+                foreach ($args as $k => $v) {
+                    if (trim($v) == '') {
+                        continue;
+                    }
+                    $argsString .= "'" . trim($v) . "', ";
+                }
+                $argsString = substr($argsString, 0, -2); // remove last comma
+                $relationships[] = [
+                    'name' => trim($parts[0]),
+                    'type' => trim($parts[1]),
+                    //// TODO: Make sure that the model is parsed correctly
+                    'model' => trim($parts[2]),
+                    'args' => $argsString,
+                ];
+            }
+        }
+
         $validations = trim($this->option('validations'));
         if ($this->option('fields_from_file')) {
             $validations = $this->processJSONValidations($this->option('fields_from_file'));
         }
 
-        $this->call('crud:controller', ['name' => $controllerNamespace . $name . 'Controller', '--crud-name' => $name, '--model-name' => $modelName, '--model-namespace' => $modelNamespace, '--view-path' => $viewPath, '--route-group' => $routeGroup, '--pagination' => $perPage, '--fields' => $fields, '--validations' => $validations]);
-        $this->call('crud:model', ['name' => $modelNamespace . $modelName, '--fillable' => $fillable, '--table' => $tableName, '--pk' => $primaryKey, '--relationships' => $relationships]);
+        $this->call('crud:controller', ['name' => $controllerNamespace . $name . 'Controller', '--crud-name' => $name, '--model-name' => $modelName, '--relationships' => $relationships, '--model-namespace' => $modelNamespace, '--view-path' => $viewPath, '--route-group' => $routeGroup, '--pagination' => $perPage, '--fields' => $fields, '--validations' => $validations, '--force' => $this->option('force')]);
+        $this->call('crud:model', ['name' => $modelNamespace . $modelName, '--fillable' => $fillable, '--table' => $tableName, '--pk' => $primaryKey, '--relationships' => $relationships, '--force' => $this->option('force')]);
         $this->call('crud:migration', ['name' => $migrationName, '--schema' => $fields, '--pk' => $primaryKey, '--indexes' => $indexes, '--foreign-keys' => $foreignKeys]);
         $this->call('crud:view', ['name' => $name, '--fields' => $fields, '--validations' => $validations, '--view-path' => $viewPath, '--route-group' => $routeGroup, '--localize' => $localize, '--pk' => $primaryKey]);
         if ($localize == 'yes') {

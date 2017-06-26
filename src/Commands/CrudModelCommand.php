@@ -16,7 +16,8 @@ class CrudModelCommand extends GeneratorCommand
                             {--table= : The name of the table.}
                             {--fillable= : The names of the fillable columns.}
                             {--relationships= : The relationships for the model}
-                            {--pk=id : The name of the primary key.}';
+                            {--pk=id : The name of the primary key.}
+                            {--force : Overwrite already existing model.}';
 
     /**
      * The console command description.
@@ -45,6 +46,20 @@ class CrudModelCommand extends GeneratorCommand
     }
 
     /**
+     * Determine if the class already exists.
+     *
+     * @param  string  $rawName
+     * @return bool
+     */
+    protected function alreadyExists($rawName)
+    {
+        if ($this->option('force')) {
+            return false;
+        }
+        return parent::alreadyExists($rawName);
+    }
+
+    /**
      * Get the default namespace for the class.
      *
      * @param  string  $rootNamespace
@@ -64,59 +79,47 @@ class CrudModelCommand extends GeneratorCommand
      */
     protected function buildClass($name)
     {
-        $stub = $this->files->get($this->getStub());
+        // $stub = $this->files->get($this->getStub());
 
         $table = $this->option('table') ?: $this->argument('name');
         $fillable = $this->option('fillable');
         $primaryKey = $this->option('pk');
-        $relationships = trim($this->option('relationships')) != '' ? explode(',', trim($this->option('relationships'))) : [];
-
-        if (!empty($primaryKey)) {
-            $primaryKey = <<<EOD
-/**
-    * The database primary key value.
-    *
-    * @var string
-    */
-    protected \$primaryKey = '$primaryKey';
-EOD;
-
-        }
-
-        $ret = $this->replaceNamespace($stub, $name)
-            ->replaceTable($stub, $table)
-            ->replaceFillable($stub, $fillable)
-            ->replacePrimaryKey($stub, $primaryKey);
-
-        foreach ($relationships as $rel) {
-            // relationshipname#relationshiptype#args_separated_by_pipes
-            // e.g. employees#hasMany#App\Employee|id|dept_id
-            // user is responsible for ensuring these relationships are valid
-            $parts = explode('#', $rel);
-
-            if (count($parts) != 3) {
-                continue;
-            }
-
-            // blindly wrap each arg in single quotes
-            $args = explode('|', trim($parts[2]));
-            $argsString = '';
-            foreach ($args as $k => $v) {
-                if (trim($v) == '') {
-                    continue;
-                }
-
-                $argsString .= "'" . trim($v) . "', ";
-            }
-
-            $argsString = substr($argsString, 0, -2); // remove last comma
-
-            $ret->createRelationshipFunction($stub, trim($parts[0]), trim($parts[1]), $argsString);
-        }
-
-        $ret->replaceRelationshipPlaceholder($stub);
-
-        return $ret->replaceClass($stub, $name);
+        $relationships = $this->option('relationships') ? $this->option('relationships') : [];
+        // $relationshipData = trim($this->option('relationships')) != '' ? explode(';', trim($this->option('relationships'))) : [];
+        // $relationships = [];
+        // foreach ($relationshipData as $rel) {
+        //     // relationshipname#relationshiptype#args_separated_by_pipes
+        //     // e.g. employees#hasMany#App\Employee|id|dept_id
+        //     // user is responsible for ensuring these relationships are valid
+        //     $parts = explode('#', $rel);
+        //     if (count($parts) != 3) {
+        //         continue;
+        //     }
+        //     // blindly wrap each arg in single quotes
+        //     $args = explode('|', trim($parts[2]));
+        //     $argsString = '';
+        //     foreach ($args as $k => $v) {
+        //         if (trim($v) == '') {
+        //             continue;
+        //         }
+        //         $argsString .= "'" . trim($v) . "', ";
+        //     }
+        //     $argsString = substr($argsString, 0, -2); // remove last comma
+        //     $relationships[] = [
+        //         'name' => trim($parts[0]),
+        //         'type' => trim($parts[1]),
+        //         'args' => $argsString,
+        //     ];
+        // }
+        $variables = compact([
+            'fillable',
+            'table',
+            'primaryKey',
+            'relationships',
+        ]);
+        $stub = (string)view('crud-generator.model', $variables);
+        return $this->replaceNamespace($stub, $name)
+                    ->replaceClass($stub, $name);
     }
 
     /**
